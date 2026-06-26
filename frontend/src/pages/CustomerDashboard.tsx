@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { theme } from '../theme'
 
-
 interface Service {
   _id: string
   title: string
@@ -33,36 +32,32 @@ function CustomerDashboard() {
   const [name] = useState(localStorage.getItem('name') || '')
 
   useEffect(() => {
-  const token = localStorage.getItem('token')
-  if (!token || localStorage.getItem('role') !== 'customer') {
-    navigate('/customer/login')
-    return
-  }
+    const token = localStorage.getItem('token')
+    if (!token || localStorage.getItem('role') !== 'customer') {
+      navigate('/customer/login')
+      return
+    }
 
-  // get userId from JWT token
-  const payload = JSON.parse(atob(token.split('.')[1]))
-  const userId = payload.userId
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const userId = payload.userId
 
-  // connect to socket and register
-  const socket = io('http://localhost:5000')
-  socket.on('connect', () => {
-    socket.emit('register', userId)
-  })
+    const socket = io('http://localhost:5000')
+    socket.on('connect', () => {
+      socket.emit('register', userId)
+    })
 
-  // listen for real-time booking status updates
-  socket.on('booking_status_update', (data: { bookingId: string; status: string }) => {
-    setBookings(prev => prev.map(b =>
-      b._id === data.bookingId ? { ...b, status: data.status } : b
-    ))
-  })
+    socket.on('booking_status_update', (data: { bookingId: string; status: string }) => {
+      setBookings(prev => prev.map(b =>
+        b._id === data.bookingId ? { ...b, status: data.status } : b
+      ))
+    })
 
-  loadServices()
+    loadServices()
 
-  return () => {
-    socket.disconnect()
-  }
-}, [])
-
+    return () => {
+      socket.disconnect()
+    }
+  }, [])
 
   const loadServices = async () => {
     const res = await api.get('/services')
@@ -90,6 +85,17 @@ function CustomerDashboard() {
       handleViewChange('bookings')
     } catch (err: any) {
       alert(err.response?.data?.message || 'Booking failed')
+    }
+  }
+
+  const submitReview = async (bookingId: string, rating: number, comment: string) => {
+    const token = localStorage.getItem('token')
+    try {
+      await api.post('/reviews', { bookingId, rating, comment }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Review failed')
     }
   }
 
@@ -132,7 +138,7 @@ function CustomerDashboard() {
 
         {view === 'bookings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '640px' }}>
-            {bookings.map(b => <BookingCard key={b._id} booking={b} />)}
+            {bookings.map(b => <BookingCard key={b._id} booking={b} onReviewSubmit={submitReview} />)}
             {bookings.length === 0 && <EmptyState text="No bookings yet — browse services to get started." />}
           </div>
         )}
@@ -190,9 +196,23 @@ function ServiceCard({ service, onBook }: { service: Service; onBook: () => void
   )
 }
 
-function BookingCard({ booking }: { booking: Booking }) {
+function BookingCard({ booking, onReviewSubmit }: {
+  booking: Booking;
+  onReviewSubmit: (bookingId: string, rating: number, comment: string) => void
+}) {
   const isCancelled = booking.status === 'Cancelled'
+  const isCompleted = booking.status === 'Completed'
   const currentStep = STATUS_STEPS.indexOf(booking.status)
+  const [showReview, setShowReview] = useState(false)
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+  const [reviewed, setReviewed] = useState(false)
+
+  const handleReview = async () => {
+    await onReviewSubmit(booking._id, rating, comment)
+    setReviewed(true)
+    setShowReview(false)
+  }
 
   return (
     <div style={{ background: theme.colors.white, border: `1px solid ${theme.colors.sandDark}`, borderRadius: '4px', padding: '24px' }}>
@@ -204,44 +224,109 @@ function BookingCard({ booking }: { booking: Booking }) {
           <p style={{ fontSize: '13px', color: theme.colors.muted }}>
             {booking.business?.businessName} · {booking.business?.phone}
           </p>
+          <p style={{ fontSize: '12px', color: theme.colors.muted, marginTop: '2px' }}>
+            {new Date(booking.bookingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
         <span style={{ fontFamily: theme.font.display, fontSize: '18px', fontWeight: 600 }}>₹{booking.totalPrice}</span>
       </div>
 
       {!isCancelled ? (
-        <div style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
-          {STATUS_STEPS.map((step, i) => (
-            <div key={step} style={{ display: 'flex', alignItems: 'center', flex: i < STATUS_STEPS.length - 1 ? 1 : 0 }}>
-              <div style={{
-                width: '10px', height: '10px', borderRadius: '50%',
-                background: i <= currentStep ? theme.colors.moss : theme.colors.sandDark,
-                flexShrink: 0
-              }} />
-              {i < STATUS_STEPS.length - 1 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
+            {STATUS_STEPS.map((step, i) => (
+              <div key={step} style={{ display: 'flex', alignItems: 'center', flex: i < STATUS_STEPS.length - 1 ? 1 : 0 }}>
                 <div style={{
-                  flex: 1, height: '1px',
-                  background: i < currentStep ? theme.colors.moss : theme.colors.sandDark
+                  width: '10px', height: '10px', borderRadius: '50%',
+                  background: i <= currentStep ? theme.colors.moss : theme.colors.sandDark,
+                  flexShrink: 0
                 }} />
-              )}
-            </div>
-          ))}
-        </div>
+                {i < STATUS_STEPS.length - 1 && (
+                  <div style={{ flex: 1, height: '1px', background: i < currentStep ? theme.colors.moss : theme.colors.sandDark }} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+            {STATUS_STEPS.map((step, i) => (
+              <span key={step} style={{
+                fontSize: '11px', color: i <= currentStep ? theme.colors.moss : theme.colors.muted,
+                fontWeight: i === currentStep ? 600 : 400, width: '60px',
+                textAlign: i === 0 ? 'left' : i === STATUS_STEPS.length - 1 ? 'right' : 'center'
+              }}>
+                {step}
+              </span>
+            ))}
+          </div>
+        </>
       ) : (
         <p style={{ fontSize: '13px', color: theme.colors.terracotta, fontWeight: 600, marginTop: '16px' }}>Cancelled</p>
       )}
 
-      {!isCancelled && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-          {STATUS_STEPS.map((step, i) => (
-            <span key={step} style={{
-              fontSize: '11px', color: i <= currentStep ? theme.colors.moss : theme.colors.muted,
-              fontWeight: i === currentStep ? 600 : 400, width: '60px',
-              textAlign: i === 0 ? 'left' : i === STATUS_STEPS.length - 1 ? 'right' : 'center'
-            }}>
-              {step}
-            </span>
-          ))}
+      {/* REVIEW SECTION */}
+      {isCompleted && !reviewed && (
+        <div style={{ marginTop: '20px', borderTop: `1px solid ${theme.colors.sand}`, paddingTop: '16px' }}>
+          {!showReview ? (
+            <button
+              onClick={() => setShowReview(true)}
+              style={{
+                padding: '8px 16px', background: 'transparent',
+                border: `1px solid ${theme.colors.terracotta}`, color: theme.colors.terracotta,
+                borderRadius: '4px', fontSize: '13px', cursor: 'pointer', fontFamily: theme.font.body
+              }}
+            >
+              ★ Leave a review
+            </button>
+          ) : (
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px' }}>Rate your experience</p>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => setRating(star)}
+                    style={{
+                      fontSize: '20px', background: 'transparent', border: 'none',
+                      cursor: 'pointer', color: star <= rating ? '#F59E0B' : theme.colors.sandDark
+                    }}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+              <textarea
+                placeholder="Share your experience (optional)"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px', border: `1px solid ${theme.colors.sandDark}`,
+                  borderRadius: '4px', fontSize: '13px', fontFamily: theme.font.body,
+                  resize: 'none', height: '80px', marginBottom: '10px'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={handleReview} style={{
+                  padding: '8px 16px', background: theme.colors.terracotta, color: theme.colors.white,
+                  border: 'none', borderRadius: '4px', fontSize: '13px', cursor: 'pointer', fontFamily: theme.font.body
+                }}>
+                  Submit review
+                </button>
+                <button onClick={() => setShowReview(false)} style={{
+                  padding: '8px 16px', background: 'transparent', border: `1px solid ${theme.colors.sandDark}`,
+                  color: theme.colors.muted, borderRadius: '4px', fontSize: '13px', cursor: 'pointer', fontFamily: theme.font.body
+                }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {reviewed && (
+        <p style={{ marginTop: '16px', fontSize: '13px', color: theme.colors.moss, fontWeight: 600 }}>
+          ✓ Review submitted
+        </p>
       )}
     </div>
   )

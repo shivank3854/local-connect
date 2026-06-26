@@ -18,6 +18,8 @@ app.set('io', io)
 app.set('connectedUsers', connectedUsers)
 const servicesRouter = require('./routes/services')
 const bookingsRouter = require('./routes/bookings')
+const reviewsRouter = require('./routes/reviews')
+app.use('/reviews', reviewsRouter)
 
 
 app.use(cors())
