@@ -1,7 +1,9 @@
+import { io } from 'socket.io-client'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { theme } from '../theme'
+
 
 interface Service {
   _id: string
@@ -31,13 +33,36 @@ function CustomerDashboard() {
   const [name] = useState(localStorage.getItem('name') || '')
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token || localStorage.getItem('role') !== 'customer') {
-      navigate('/customer/login')
-      return
-    }
-    loadServices()
-  }, [])
+  const token = localStorage.getItem('token')
+  if (!token || localStorage.getItem('role') !== 'customer') {
+    navigate('/customer/login')
+    return
+  }
+
+  // get userId from JWT token
+  const payload = JSON.parse(atob(token.split('.')[1]))
+  const userId = payload.userId
+
+  // connect to socket and register
+  const socket = io('http://localhost:5000')
+  socket.on('connect', () => {
+    socket.emit('register', userId)
+  })
+
+  // listen for real-time booking status updates
+  socket.on('booking_status_update', (data: { bookingId: string; status: string }) => {
+    setBookings(prev => prev.map(b =>
+      b._id === data.bookingId ? { ...b, status: data.status } : b
+    ))
+  })
+
+  loadServices()
+
+  return () => {
+    socket.disconnect()
+  }
+}, [])
+
 
   const loadServices = async () => {
     const res = await api.get('/services')

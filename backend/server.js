@@ -1,4 +1,5 @@
 require('dotenv').config()
+const connectedUsers = {}
 const express = require('express')
 const http = require('http')
 const { Server } = require('socket.io')
@@ -13,6 +14,8 @@ const server = http.createServer(app)
 const io = new Server(server, {
   cors: { origin: '*' }
 })
+app.set('io', io)
+app.set('connectedUsers', connectedUsers)
 const servicesRouter = require('./routes/services')
 const bookingsRouter = require('./routes/bookings')
 
@@ -34,10 +37,23 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id)
 
+  // user registers their socket with their ID
+  socket.on('register', (userId) => {
+    connectedUsers[userId] = socket.id
+    console.log('Registered user:', userId, socket.id)
+  })
+
   socket.on('disconnect', () => {
+    // remove user from connectedUsers when they disconnect
+    Object.keys(connectedUsers).forEach(userId => {
+      if (connectedUsers[userId] === socket.id) {
+        delete connectedUsers[userId]
+      }
+    })
     console.log('User disconnected:', socket.id)
   })
 })
+
 
 connectDB().then(() => {
   server.listen(process.env.PORT || 5000, () => {

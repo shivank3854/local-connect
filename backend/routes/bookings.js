@@ -55,10 +55,10 @@ router.get('/my/business', authMiddleware, businessOnly, async (req, res) => {
   }
 })
 
-// UPDATE booking status (business only - they confirm/progress/complete)
+// UPDATE booking status (business only)
 router.put('/:id/status', authMiddleware, businessOnly, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
+    const booking = await Booking.findById(req.params.id).populate('customer', '_id')
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" })
     }
@@ -68,13 +68,28 @@ router.put('/:id/status', authMiddleware, businessOnly, async (req, res) => {
 
     booking.status = req.body.status
     await booking.save()
+
+    // emit real-time update to the customer
+    const io = req.app.get('io')
+    const connectedUsers = req.app.get('connectedUsers')
+    const customerId = booking.customer._id.toString()
+    const customerSocketId = connectedUsers[customerId]
+
+    if (customerSocketId) {
+      io.to(customerSocketId).emit('booking_status_update', {
+        bookingId: booking._id,
+        status: booking.status
+      })
+      console.log('Emitted status update to customer:', customerId)
+    }
+
     res.json(booking)
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
 })
 
-// CANCEL booking (customer only - their own booking)
+// CANCEL booking (customer only)
 router.put('/:id/cancel', authMiddleware, customerOnly, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
