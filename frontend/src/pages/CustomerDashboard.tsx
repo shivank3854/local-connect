@@ -57,7 +57,7 @@ function CustomerDashboard() {
     return () => {
       socket.disconnect()
     }
-  }, [])
+  }, [navigate])
 
   const loadServices = async () => {
     const res = await api.get('/services')
