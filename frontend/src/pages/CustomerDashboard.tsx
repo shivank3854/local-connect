@@ -41,7 +41,7 @@ function CustomerDashboard() {
     const payload = JSON.parse(atob(token.split('.')[1]))
     const userId = payload.userId
 
-    const socket = io('http://localhost:5000')
+    const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000')
     socket.on('connect', () => {
       socket.emit('register', userId)
     })
