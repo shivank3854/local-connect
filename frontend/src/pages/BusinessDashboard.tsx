@@ -42,7 +42,7 @@ function BusinessDashboard() {
       return
     }
     loadBookings()
-  }, [])
+  }, [navigate])
 
   const loadServices = async () => {
     const token = localStorage.getItem('token')
