@@ -6,7 +6,7 @@ const { Server } = require('socket.io')
 const cors = require('cors')
 const connectDB = require('./config/db')
 
-const customerAuthRouter = require('./routes/customerAuth')
+const customerAuthRouter = require('./routes/CustomerAuth')
 const businessAuthRouter = require('./routes/businessAuth')
 
 const app = express()
@@ -16,7 +16,7 @@ const io = new Server(server, {
 })
 app.set('io', io)
 app.set('connectedUsers', connectedUsers)
-const servicesRouter = require('./routes/services')
+const servicesRouter = require('./routes/Services')
 const bookingsRouter = require('./routes/bookings')
 const reviewsRouter = require('./routes/reviews')
 app.use('/reviews', reviewsRouter)
